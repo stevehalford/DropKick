@@ -6,19 +6,19 @@
  *
  * &copy; 2011 Jamie Lottering <http://github.com/JamieLottering>
  *                        <http://twitter.com/JamieLottering>
- * 
+ *
  */
 (function ($, window, document) {
 
   var ie6 = false;
 
   // Help prevent flashes of unstyled content
-  if ($.browser.msie && $.browser.version.substr(0, 1) < 7) {
+  if ($.browser.msie && $.browser.version.match(/^(\d+)\./)[1] < 7) {
     ie6 = true;
   } else {
     document.documentElement.className = document.documentElement.className + ' dk_fouc';
   }
-  
+
   var
     // Public methods exposed to $.fn.dropkick()
     methods = {},
@@ -56,10 +56,7 @@
       startSpeed : 1000,  // I recommend a high value here, I feel it makes the changes less noticeable to the user
       theme  : false,
       change : false
-    },
-
-    // Make sure we only bind keydown on the document once
-    keysBound = false
+    }
   ;
 
   // Called by using $('foo').dropkick();
@@ -90,14 +87,14 @@
         tabindex  = $select.attr('tabindex') ? $select.attr('tabindex') : '',
 
         // The completed dk_container element
-        $dk = false,
+        $dk,
 
         theme
       ;
 
       // Dont do anything if we've already setup dropkick on this element
       if (data.id) {
-        return $select;
+        return;
       } else {
         data.settings  = settings;
         data.tabindex  = tabindex;
@@ -105,7 +102,7 @@
         data.$original = $original;
         data.$select   = $select;
         data.value     = _notBlank($select.val()) || _notBlank($original.attr('value'));
-        data.label     = $original.text();
+        data.label     = $original.html();
         data.options   = $options;
       }
 
@@ -140,9 +137,9 @@
       lists[lists.length] = $select;
 
       // Focus events
-      $dk.bind('focus.dropkick', function (e) {
+      $dk.bind('focus.dropkick', function () {
         $dk.addClass('dk_focus');
-      }).bind('blur.dropkick', function (e) {
+      }).bind('blur.dropkick', function () {
         $dk.removeClass('dk_open dk_focus');
       });
 
@@ -166,6 +163,54 @@
     list.theme = newTheme;
   };
 
+  /*
+   * Change value of current select
+   * usage: $("...").dropkick('select', select_value);
+   */
+  methods.select = function (value) {
+    for (var i = 0, l = lists.length; i < l; i++) {
+      var   listData = lists[i].data('dropkick');
+      var   $dk = listData.$dk;
+
+      if ($(this)[0] == $dk.next()[0]) {
+        var   $current;
+
+        $current = $($dk.find('li a[data-dk-dropdown-value="' + value + '"]')[0]).closest('li');
+        $dk.find('.dk_label').text(listData.label);
+        $dk.find('.dk_options_inner').animate({ scrollTop: 0 }, 0);
+
+        _setCurrent($current, $dk);
+        _updateFields($current, $dk, true);
+
+        var   data = $dk.data('dropkick');
+        var   $select = data.$select;
+
+        $select.val(value);
+
+        if ($.browser.msie) {
+          $current.find('a').trigger('mousedown');
+        }
+        else {
+          $current.find('a').trigger('click');
+        }
+        break;
+      }
+    }
+  };
+
+  /*
+   * Reload the dropkick select widget after options have changed
+   * usage: $("...").dropkick('reload');
+   */
+  methods.reload = function () {
+    var  $select = $(this);
+    var  data = $select.data('dropkick');
+
+    $select.removeData("dropkick");
+    $("#dk_container_"+ data.id).remove();
+    $select.dropkick(data.settings);
+  };
+
   // Reset all <selects and dropdowns in our lists array
   methods.reset = function () {
     for (var i = 0, l = lists.length; i < l; i++) {
@@ -183,6 +228,12 @@
     }
   };
 
+  methods.setValue = function (value) {
+    var $dk = $(this).data('dropkick').$dk;
+    var $option = $dk.find('.dk_options a[data-dk-dropdown-value="' + value + '"]');
+    _updateFields($option, $dk);
+  };
+
   // Expose the plugin
   $.fn.dropkick = function (method) {
     if (!ie6) {
@@ -192,13 +243,13 @@
         return methods.init.apply(this, arguments);
       }
     }
+    return this;
   };
 
   // private
   function _handleKeyBoardNav(e, $dk) {
     var
       code     = e.keyCode,
-      data     = $dk.data('dropkick'),
       options  = $dk.find('.dk_options'),
       open     = $dk.hasClass('dk_open'),
       current  = $dk.find('.dk_option_current'),
@@ -254,7 +305,7 @@
 
   // Update the <select> value, and the dropdown label
   function _updateFields(option, $dk, reset) {
-    var value, label, data;
+    var value, label, data, $select;
 
     value = option.attr('data-dk-dropdown-value');
     label = option.text();
@@ -262,6 +313,7 @@
 
     $select = data.$select;
     $select.val(value);
+    $select.trigger('change');
 
     $dk.find('.dk_label').text(label);
 
@@ -292,10 +344,8 @@
 
   // Open a dropdown
   function _openDropdown($dk) {
-    var data = $dk.data('dropkick');
     $dk.find('.dk_options').css({ top : $dk.find('.dk_toggle').outerHeight() - 1 });
     $dk.toggleClass('dk_open');
-
   }
 
   /**
@@ -324,7 +374,7 @@
 
         oTemplate = oTemplate.replace('{{ value }}', $option.val());
         oTemplate = oTemplate.replace('{{ current }}', (_notBlank($option.val()) === view.value) ? current : '');
-        oTemplate = oTemplate.replace('{{ text }}', $option.text());
+        oTemplate = oTemplate.replace('{{ text }}', $option.html());
 
         options[options.length] = oTemplate;
       }
@@ -360,10 +410,9 @@
     $('.dk_options a').live(($.browser.msie ? 'mousedown' : 'click'), function (e) {
       var
         $option = $(this),
-        $dk     = $option.parents('.dk_container').first(),
-        data    = $dk.data('dropkick')
+        $dk     = $option.parents('.dk_container').first()
       ;
-    
+
       _closeDropdown($dk);
       _updateFields($option, $dk);
       _setCurrent($option.parent(), $dk);
