@@ -102,7 +102,7 @@
         data.$original = $original;
         data.$select   = $select;
         data.value     = _notBlank($select.val()) || _notBlank($original.attr('value'));
-        data.label     = $original.html();
+        data.label     = $original.text();
         data.options   = $options;
       }
 
@@ -374,7 +374,7 @@
 
         oTemplate = oTemplate.replace('{{ value }}', $option.val());
         oTemplate = oTemplate.replace('{{ current }}', (_notBlank($option.val()) === view.value) ? current : '');
-        oTemplate = oTemplate.replace('{{ text }}', $option.html());
+        oTemplate = oTemplate.replace('{{ text }}', $option.text());
 
         options[options.length] = oTemplate;
       }
